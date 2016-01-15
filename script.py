@@ -2,41 +2,40 @@
 
 import ForwardNN
 import numpy as np
-import sys
+import argparse
 import os.path
 
 np.set_printoptions(threshold='nan')
 
 #Reads in file as an array of arrays.
 def readFile(name):
-    X = []
-    if os.path.isfile(name):
-        f = open(name,'r')
-        for line in f:
-            X.append([float(y) for y in line.split(' ')])
-        f.close()
-        return np.array(X)
-    return False
+    fileX = []
+    for line in name:
+        fileX.append([float(y) for y in line.split(' ')])
+    name.close()
+    return np.array(fileX)
 
-def readWeights(name):
-    if os.path.isfile(name):
-        f = open(name, 'r')
-        prevWeights = np.fromstring(f.readline(), dtype=float, sep=" ")
-        f.close()
-        return prevWeights
-    return False
+def read_params(name):
+    prev = []
+    firstline = name.readline()
+    layer = ()
+    for arg in firstline:
+        layer = layer + (int(arg),)
+    prev.append(layer)
+    prev.append(np.fromstring(name.readline(), dtype=float, sep=" "))
+    name.close()
+    return prev
 
-#In place of a main, as python lacks one. Call run to read in the training data and train,
-#As well as run a monte carlo to find a satisfactory network. Then it will sit in a loop
-#waiting for input commands.
-def run():
-    #reads in the test data files.
-    X = readFile(sys.argv[1])
-    Y = readFile(sys.argv[2])
-    if len(sys.argv) >= 4:
-        weights = readWeights(sys.argv[3])
+# In place of a main, as python lacks one. Call run to read in the training data and train,
+# As well as run a monte carlo to find a satisfactory network. Then it will sit in a loop
+# waiting for input commands.
+def visual(argv):
+    print argv
+    X = readFile(argv.input[0])
+    Y = readFile(argv.output[0])
+
     if not X.shape[0] == Y.shape[0]:
-        print "Need equal number of Inputs and Outputs"
+        print "ERROR: Need equal number of Inputs and Outputs"
         return
     else:
         print str(X.shape[0]) + " data points given."
@@ -45,41 +44,36 @@ def run():
     print("This neural network will take in " + str(X.shape[1]) +
      " inputs and will output " + str(Y.shape[1]) + " floats.")
 
-    numHiddenLayers = ""
-    while not numHiddenLayers.isdigit():
-        numHiddenLayers = raw_input("How many hidden layers do you want: ")
-    numHiddenLayers = int(numHiddenLayers)
+    layerNodes = None
+    params = None
 
-    layerNodes = (X.shape[1],)
+    if not argv.params == None:
+        params = read_params(argv.params[0])
+        if params[0][0] == X.shape[1] and params[0][len(params[0])] == Y.shape[1]:
+            layerNodes = params[0]
+            NN = ForwardNN.ForwardNN(layerNodes)
+            NN.set_params(params[1])
+        else:
+            print "ERROR: Invalid layers given by parameters"
+            return
+    elif not argv.layers == None:
+        layerNodes = (X.shape[1],) + tuple(argv.layers,) + (Y.shape[1],)
+        NN = ForwardNN.ForwardNN(layerNodes)
+        print("Neural Network Layers: " + str(layerNodes))
+    else:
+        layerNodes = (X.shape[1],) + (Y.shape[1],)
+        NN = ForwardNN.ForwardNN(layerNodes)
+        print("Neural Network Layers: " + str(layerNodes))
 
-    print("Enter the number of nodes for each hidden layer")
-    for i in range(1, numHiddenLayers+1):
-        hiddenLayerNodes = ""
-        while not hiddenLayerNodes.isdigit():
-            hiddenLayerNodes = raw_input("Hidden Layer " + str(i) + ": ")
-        layerNodes = layerNodes + (int(hiddenLayerNodes),)
-        print layerNodes
-
-    layerNodes = layerNodes + (Y.shape[1],)
-    print layerNodes
-
-    NN = ForwardNN.ForwardNN(layerNodes)
-    if len(sys.argv) >= 4:
-        NN.set_params(weights)
-
-    train = ForwardNN.Trainer(NN)
 
     # As the print states, runs a forward operation on the network with it's randomly generated weights.
-    raw_input("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
+    print("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
     print(NN.forward(X))
     print("Cost Function: " + NN.cost_function_type(X, Y))
     print("Cost: " + str(NN.cost_function(X, Y)))
 
     #Trains the network using the trainer and test data.
-    max_count = ""
-    while not max_count.isdigit():
-        max_count = raw_input("Training the network, then training on a monte carlo.\n# of Cycles: ")
-    max_count = int(max_count)
+    max_count = argv.cycle[0]
 
     bestNN = ForwardNN.ForwardNN(layerNodes)
     bestNN.set_params(NN.get_params())
@@ -100,7 +94,7 @@ def run():
 
         NN.set_params(bestNN.get_params())
     #Print the results of the training and monte carlo.
-    raw_input("Now printing the final match results.")
+    print("Now printing the final match results.")
     print(np.around(NN.forward(X), decimals=2))
     print("Cost function: " + str(NN.cost_function(X, Y)))
 
@@ -166,11 +160,23 @@ def run():
         else:
             print "#NopeNopeNope."
 
-#If this script is being run, as opposed to imported, run the run function.
+# If this script is being run, as opposed to imported, run the run function.
 if __name__ == '__main__':
-    if len(sys.argv) >= 2:
-        run()
-    else:
-        print "Invalid number of inputs. (Requires expected input & expected output files)"
+    import argparse
+    parser = argparse.ArgumentParser(description="Takes in information to give to Neural Network")
+    parser.add_argument("input", metavar="I", type=argparse.FileType('r'), nargs=1, help="Input data points")
+    parser.add_argument("output", metavar="O", type=argparse.FileType('r'), nargs=1, help="Expected output data")
+    parser.add_argument("cycle", metavar="C", type=int, nargs=1,
+                        help="Number of cycles used for training. Best cost function will be taken.")
+    parser.add_argument("--params", metavar="W", type=argparse.FileType('r'), nargs='?',
+                        help="File containing pre-existing weights and layers")
+    parser.add_argument("--layers", type=int, nargs='*', const=None, default=None,
+                        help="List of ints, containing the # of nodes for each hidden layer (Overwritten by params)")
+    parser.add_argument("--visual", dest="visual", action="store_const", const=visual, default=visual,
+                        help="Runs through Neural Network with visual")
 
+args = parser.parse_args()
+args.visual(args)
+
+# META
 __author__ = 'Bill Clark & John Bucknam'
