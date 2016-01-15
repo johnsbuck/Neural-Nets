@@ -12,7 +12,6 @@ def readFile(name):
     fileX = []
     for line in name:
         fileX.append([float(y) for y in line.split(' ')])
-    name.close()
     return np.array(fileX)
 
 def read_params(name):
@@ -23,8 +22,88 @@ def read_params(name):
         layer = layer + (int(arg),)
     prev.append(layer)
     prev.append(np.fromstring(name.readline(), dtype=float, sep=" "))
-    name.close()
     return prev
+
+def forward(testfile, infile, outfile, NN):
+    try:
+        inputFile = open(testfile, 'r')
+        input = readFile(inputFile)
+        inputFile.close()
+    except IOError:
+        print("ERROR: Invalid file input")
+        return False
+
+    print(np.around(NN.forward(input), decimals=2))
+
+    # Additional checker tool, allows for a forwarded file to be added to test data.
+    valid = raw_input("Is this the expected output? (y/n): ")
+    if valid == "n":
+        actualOutput = raw_input("What is the correct output: ")
+        try:
+            actualOutput = int(actualOutput)
+            with open(infile, "a") as trainInput:
+                with open(testfile, "r") as newInput:
+                    trainInput.write(newInput.read())
+                    trainInput.close()
+                    newInput.close()
+            with open(outfile, "a") as trainOutput:
+                newData = ""
+                zeroes = 9 - actualOutput
+                while actualOutput > 0:
+                    newData += "0 "
+                    actualOutput = actualOutput - 1
+                newData += "1"
+                if zeroes == 0:
+                    newData += "\n"
+                else:
+                    newData += " "
+                    while zeroes > 0:
+                        if zeroes == 1:
+                            newData += "0\n"
+                        else:
+                            newData += "0 "
+                        zeroes = zeroes - 1
+                trainOutput.write(newData)
+                trainOutput.close()
+                print("Is added to training data. Will not be implemented until restart.")
+        except ValueError:
+            print("ERROR: Invalid input.")
+            return False
+    return True
+
+def save(filename):
+    if filename == "default":
+        filename = "Weights-" + str(layerNodes)
+        return True
+
+    with open(filename, "w") as weights:
+        print "Saving weights in " + filename
+        weights.write(str(NN.get_params()).replace("[", "").replace("]","")
+                      .replace("\n", "").replace("   "," ").replace("  ", " "))
+        weights.close()
+    return True
+
+def train(max_count, NN, layerNodes, X, Y):
+    bestNN = ForwardNN.ForwardNN(layerNodes)
+    bestNN.set_params(NN.get_params())
+
+    # This is our monte carlo. Continually trains networks until one statisfies our conditions.
+    if max_count > 0:
+        count = 0
+        while np.isnan(bestNN.cost_function(X, Y)) or count < max_count:
+            train = ForwardNN.Trainer(NN)
+            train.train(X, Y)
+            if bestNN.cost_function(X, Y) > NN.cost_function(X, Y):
+                bestNN = ForwardNN.ForwardNN(layerNodes)
+                bestNN.set_params(NN.get_params())
+                print("New cost: " + str(bestNN.cost_function(X, Y)))
+            count += 1
+            NN = ForwardNN.ForwardNN(layerNodes)
+            print("Current cycle: " + str(count))
+
+        NN.set_params(bestNN.get_params())
+    return NN
+
 
 # In place of a main, as python lacks one. Call run to read in the training data and train,
 # As well as run a monte carlo to find a satisfactory network. Then it will sit in a loop
@@ -32,11 +111,13 @@ def read_params(name):
 def visual(argv):
     print argv
     X = readFile(argv.input[0])
+    argv.input[0].close()
     Y = readFile(argv.output[0])
+    argv.output[0].close()
 
     if not X.shape[0] == Y.shape[0]:
         print "ERROR: Need equal number of Inputs and Outputs"
-        return
+        return False
     else:
         print str(X.shape[0]) + " data points given."
 
@@ -49,6 +130,7 @@ def visual(argv):
 
     if not argv.params == None:
         params = read_params(argv.params[0])
+        argv.params[0].close()
         if params[0][0] == X.shape[1] and params[0][len(params[0])] == Y.shape[1]:
             layerNodes = params[0]
             NN = ForwardNN.ForwardNN(layerNodes)
@@ -73,26 +155,8 @@ def visual(argv):
     print("Cost: " + str(NN.cost_function(X, Y)))
 
     # Trains the network using the trainer and test data.
-    max_count = argv.cycle[0]
+    NN = train(argv.cycle[0], NN, layerNodes, X, Y)
 
-    bestNN = ForwardNN.ForwardNN(layerNodes)
-    bestNN.set_params(NN.get_params())
-
-    # This is our monte carlo. Continually trains networks until one statisfies our conditions.
-    if max_count > 0:
-        count = 0
-        while np.isnan(bestNN.cost_function(X, Y)) or count < max_count:
-            train = ForwardNN.Trainer(NN)
-            train.train(X, Y)
-            if bestNN.cost_function(X, Y) > NN.cost_function(X, Y):
-                bestNN = ForwardNN.ForwardNN(layerNodes)
-                bestNN.set_params(NN.get_params())
-                print("New cost: " + str(bestNN.cost_function(X, Y)))
-            count += 1
-            NN = ForwardNN.ForwardNN(layerNodes)
-            print("Current cycle: " + str(count))
-
-        NN.set_params(bestNN.get_params())
     # Print the results of the training and monte carlo.
     print("Now printing the final match results.")
     print(np.around(NN.forward(X), decimals=2))
@@ -100,65 +164,25 @@ def visual(argv):
 
     # Input control loop.
     while 1:
-        ans = raw_input("input a command: forward <file>, save <file>, or exit: ")
+        ans = raw_input("\nInput a one of the following commands: " +
+        "\n\tforward <file>\n\tsave <file>\n\texit" +
+        "\n\nCommand: ")
 
         # When a user inputs forward and a file, read in the file and run forward using it.
         if ans.split(' ')[0] == 'forward' and len(ans.split(' ')) > 1:
-                print ans.split(' ')
-                input = readFile(ans.split(' ')[1])
-                print(np.around(NN.forward(input), decimals=2))
-
-                # Additional checker tool, allows for a forwarded file to be added to test data.
-                valid = raw_input("Is this the expected output? (y/n): ")
-                if valid == "n":
-                    actualOutput = raw_input("What is the correct output: ")
-                    try:
-                        actualOutput = int(actualOutput)
-                        with open(sys.argv[1], "a") as trainInput:
-                            with open(ans.split(' ')[1], "r") as newInput:
-                                trainInput.write(newInput.read())
-                                trainInput.close()
-                                newInput.close()
-                        with open(sys.argv[2], "a") as trainOutput:
-                            newData = ""
-                            zeroes = 9 - actualOutput
-                            while actualOutput > 0:
-                                newData += "0 "
-                                actualOutput = actualOutput - 1
-                            newData += "1"
-                            if zeroes == 0:
-                                newData += "\n"
-                            else:
-                                newData += " "
-                                while zeroes > 0:
-                                    if zeroes == 1:
-                                        newData += "0\n"
-                                    else:
-                                        newData += "0 "
-                                    zeroes = zeroes - 1
-                            trainOutput.write(newData)
-                            trainOutput.close()
-                            print("Is added to training data. Will not be implemented until restart.")
-                    except ValueError:
-                        print("Invalid input.")
-        elif ans.split(' ')[0] == 'save' and len(ans.split(' ')) > 1:
-            print ans.split(' ')
-
-            filename = ans.split(' ')[1]
-            if filename == "default":
-                filename = "Weights-" + str(layerNodes)
-
-            with open(filename, "w") as weights:
-                print "Saving weights in " + filename
-                weights.write(str(NN.get_params()).replace("[", "").replace("]","")
-                              .replace("\n", "").replace("   "," ").replace("  ", " "))
-                weights.close()
+            forward(ans.split(' ')[1], argv.input[0].name, argv.output[0].name, NN)
+        elif ans.split(' ')[0] == 'save':
+            if len(ans.split(' ')) <= 1:
+                save("default")
+            else:
+                save(ans.split(' ')[1])
         # Exit.
         elif ans.split(' ')[0] == 'exit':
-                break
+            break
         # Completely invalid input.
         else:
             print "#NopeNopeNope."
+
 
 # If this script is being run, as opposed to imported, run the run function.
 if __name__ == '__main__':
