@@ -7,7 +7,7 @@ import os.path
 
 np.set_printoptions(threshold='nan')
 
-#Reads in file as an array of arrays.
+# Reads in file as an array of arrays.
 def readFile(name):
     fileX = []
     for line in name:
@@ -40,7 +40,7 @@ def visual(argv):
     else:
         print str(X.shape[0]) + " data points given."
 
-    #Creates a trainer and network, created as a X input to a set of hidden to Y output.
+    # Creates a trainer and network, created as a X input to a set of hidden to Y output.
     print("This neural network will take in " + str(X.shape[1]) +
      " inputs and will output " + str(Y.shape[1]) + " floats.")
 
@@ -72,13 +72,13 @@ def visual(argv):
     print("Cost Function: " + NN.cost_function_type(X, Y))
     print("Cost: " + str(NN.cost_function(X, Y)))
 
-    #Trains the network using the trainer and test data.
+    # Trains the network using the trainer and test data.
     max_count = argv.cycle[0]
 
     bestNN = ForwardNN.ForwardNN(layerNodes)
     bestNN.set_params(NN.get_params())
 
-    #This is our monte carlo. Continually trains networks until one statisfies our conditions.
+    # This is our monte carlo. Continually trains networks until one statisfies our conditions.
     if max_count > 0:
         count = 0
         while np.isnan(bestNN.cost_function(X, Y)) or count < max_count:
@@ -93,12 +93,12 @@ def visual(argv):
             print("Current cycle: " + str(count))
 
         NN.set_params(bestNN.get_params())
-    #Print the results of the training and monte carlo.
+    # Print the results of the training and monte carlo.
     print("Now printing the final match results.")
     print(np.around(NN.forward(X), decimals=2))
     print("Cost function: " + str(NN.cost_function(X, Y)))
 
-    #Input control loop.
+    # Input control loop.
     while 1:
         ans = raw_input("input a command: forward <file>, save <file>, or exit: ")
 
@@ -108,7 +108,7 @@ def visual(argv):
                 input = readFile(ans.split(' ')[1])
                 print(np.around(NN.forward(input), decimals=2))
 
-                #Additional checker tool, allows for a forwarded file to be added to test data.
+                # Additional checker tool, allows for a forwarded file to be added to test data.
                 valid = raw_input("Is this the expected output? (y/n): ")
                 if valid == "n":
                     actualOutput = raw_input("What is the correct output: ")
