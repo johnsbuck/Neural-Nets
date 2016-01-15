@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import NeuralNetwork
+import ForwardNN
 import numpy as np
 import sys
 import os.path
@@ -63,11 +63,11 @@ def run():
     layerNodes = layerNodes + (Y.shape[1],)
     print layerNodes
 
-    NN = NeuralNetwork.NeuralNetwork(layerNodes)
+    NN = ForwardNN.ForwardNN(layerNodes)
     if len(sys.argv) >= 4:
         NN.set_params(weights)
 
-    train = NeuralNetwork.Trainer(NN)
+    train = ForwardNN.Trainer(NN)
 
     # As the print states, runs a forward operation on the network with it's randomly generated weights.
     raw_input("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
@@ -81,21 +81,21 @@ def run():
         max_count = raw_input("Training the network, then training on a monte carlo.\n# of Cycles: ")
     max_count = int(max_count)
 
-    bestNN = NeuralNetwork.NeuralNetwork(layerNodes)
+    bestNN = ForwardNN.ForwardNN(layerNodes)
     bestNN.set_params(NN.get_params())
 
     #This is our monte carlo. Continually trains networks until one statisfies our conditions.
     if max_count > 0:
         count = 0
         while np.isnan(bestNN.cost_function(X, Y)) or count < max_count:
-            train = NeuralNetwork.Trainer(NN)
+            train = ForwardNN.Trainer(NN)
             train.train(X, Y)
             if bestNN.cost_function(X, Y) > NN.cost_function(X, Y):
-                bestNN = NeuralNetwork.NeuralNetwork(layerNodes)
+                bestNN = ForwardNN.ForwardNN(layerNodes)
                 bestNN.set_params(NN.get_params())
                 print("New cost: " + str(bestNN.cost_function(X, Y)))
             count += 1
-            NN = NeuralNetwork.NeuralNetwork(layerNodes)
+            NN = ForwardNN.ForwardNN(layerNodes)
             print("Current cycle: " + str(count))
 
         NN.set_params(bestNN.get_params())

@@ -4,7 +4,7 @@ from scipy import optimize
 __author__ = 'John Bucknam & Bill Clark'
 
 
-class NeuralNetwork(object):
+class ForwardNN(object):
     """A feedforward neural network that capable of regression or classification.
 
     Requires Numpy to run and takes in ndarray inputs.
