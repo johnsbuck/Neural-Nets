@@ -48,10 +48,12 @@ public class GUI
       public void actionPerformed(ActionEvent e)
       {
         try {
-          PrintWriter out = new PrintWriter(fileName.getText());
+          PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(fileName.getText(), true)));
           out.println(grid.toString());
           out.close();
         } catch (FileNotFoundException er) {
+          er.printStackTrace();
+        } catch (IOException er) {
           er.printStackTrace();
         }
         grid.clear();
@@ -188,6 +190,59 @@ public class GUI
     {
       List<Integer> cellValues = new ArrayList(cells.size());
 
+      int bestX = -1;
+      int bestY = -1;
+
+      for(int y = 0; y < 7; y++)
+      {
+        for(int x = 0; x < 5; x++)
+        {
+          int index = (y * 5) + x;
+          if(cells.get(index).getValue() == 1)
+          {
+            if(bestX == -1 || x < bestX)
+            {
+              bestX = x;
+            }
+            if(bestY == -1 || y < bestY)
+            {
+              bestY = y;
+            }
+          }
+        }
+      }
+
+      if(bestX > 0 || bestY > 0)
+      {
+        for(int y = 0; y < 7; y++)
+        {
+          for(int x = 0; x < 5; x++)
+          {
+            int index = (y * 5) + x;
+
+            if(cells.get(index).getValue() == 1)
+            {
+              int newIndex = index;
+              if(bestX > 0 && bestY > 0)
+              {
+                newIndex = ((y - bestY) * 5) + (x - bestX);
+              }
+              else if(bestX > 0)
+              {
+                newIndex = (y * 5) + (x - bestX);
+              }
+              else
+              {
+                newIndex = ((y - bestY) * 5) + x;
+              }
+
+              cells.get(index).clear();
+              cells.get(newIndex).selected();
+            }
+          }
+        }
+      }
+
       for(int i = 0; i < cells.size(); i++)
       {
         cellValues.add(cells.get(i).getValue());
@@ -257,6 +312,14 @@ public class GUI
     public void clear()
     {
       setBackground(defaultBackground);
+    }
+
+    /**
+     * Sets cell to selected
+     */
+    public void selected()
+    {
+      setBackground(Color.BLACK);
     }
 
     /**

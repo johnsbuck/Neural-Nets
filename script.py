@@ -1,176 +1,206 @@
 #!/usr/bin/env python
 
-import NeuralNetwork
+import ForwardNN
 import numpy as np
-import sys
+import argparse
 import os.path
 
 np.set_printoptions(threshold='nan')
 
-#Reads in file as an array of arrays.
+# Reads in file as an array of arrays.
 def readFile(name):
-    X = []
-    if os.path.isfile(name):
-        f = open(name,'r')
-        for line in f:
-            X.append([float(y) for y in line.split(' ')])
-        f.close()
-        return np.array(X)
-    return False
+    fileX = []
+    for line in name:
+        fileX.append([float(y) for y in line.split(' ')])
+    return np.array(fileX)
 
-def readWeights(name):
-    if os.path.isfile(name):
-        f = open(name, 'r')
-        prevWeights = np.fromstring(f.readline(), dtype=float, sep=" ")
-        f.close()
-        return prevWeights
-    return False
+def read_params(name):
+    prev = []
+    firstline = name.readline()
+    layer = ()
+    for arg in firstline:
+        layer = layer + (int(arg),)
+    prev.append(layer)
+    prev.append(np.fromstring(name.readline(), dtype=float, sep=" "))
+    return prev
 
-#In place of a main, as python lacks one. Call run to read in the training data and train,
-#As well as run a monte carlo to find a satisfactory network. Then it will sit in a loop
-#waiting for input commands.
-def run():
-    #reads in the test data files.
-    X = readFile(sys.argv[1])
-    Y = readFile(sys.argv[2])
-    if len(sys.argv) >= 4:
-        weights = readWeights(sys.argv[3])
+def forward(testfile, infile, outfile, NN):
+    try:
+        inputFile = open(testfile, 'r')
+        input = readFile(inputFile)
+        inputFile.close()
+    except IOError:
+        print("ERROR: Invalid file input")
+        return False
+
+    print(np.around(NN.forward(input), decimals=2))
+
+    # Additional checker tool, allows for a forwarded file to be added to test data.
+    valid = raw_input("Is this the expected output? (y/n): ")
+    if valid == "n":
+        actualOutput = raw_input("What is the correct output: ")
+        try:
+            actualOutput = int(actualOutput)
+            with open(infile, "a") as trainInput:
+                with open(testfile, "r") as newInput:
+                    trainInput.write(newInput.read())
+                    trainInput.close()
+                    newInput.close()
+            with open(outfile, "a") as trainOutput:
+                newData = ""
+                zeroes = 9 - actualOutput
+                while actualOutput > 0:
+                    newData += "0 "
+                    actualOutput = actualOutput - 1
+                newData += "1"
+                if zeroes == 0:
+                    newData += "\n"
+                else:
+                    newData += " "
+                    while zeroes > 0:
+                        if zeroes == 1:
+                            newData += "0\n"
+                        else:
+                            newData += "0 "
+                        zeroes = zeroes - 1
+                trainOutput.write(newData)
+                trainOutput.close()
+                print("Is added to training data. Will not be implemented until restart.")
+        except ValueError:
+            print("ERROR: Invalid input.")
+            return False
+    return True
+
+def save(filename):
+    if filename == "default":
+        filename = "Weights-" + str(layerNodes)
+        return True
+
+    with open(filename, "w") as weights:
+        print "Saving weights in " + filename
+        weights.write(str(NN.get_params()).replace("[", "").replace("]","")
+                      .replace("\n", "").replace("   "," ").replace("  ", " "))
+        weights.close()
+    return True
+
+def train(max_count, NN, layerNodes, X, Y):
+    bestNN = ForwardNN.ForwardNN(layerNodes)
+    bestNN.set_params(NN.get_params())
+
+    # This is our monte carlo. Continually trains networks until one statisfies our conditions.
+    if max_count > 0:
+        count = 0
+        while np.isnan(bestNN.cost_function(X, Y)) or count < max_count:
+            train = ForwardNN.Trainer(NN)
+            train.train(X, Y)
+            if bestNN.cost_function(X, Y) > NN.cost_function(X, Y):
+                bestNN = ForwardNN.ForwardNN(layerNodes)
+                bestNN.set_params(NN.get_params())
+                print("New cost: " + str(bestNN.cost_function(X, Y)))
+            count += 1
+            NN = ForwardNN.ForwardNN(layerNodes)
+            print("Current cycle: " + str(count))
+
+        NN.set_params(bestNN.get_params())
+    return NN
+
+
+# In place of a main, as python lacks one. Call run to read in the training data and train,
+# As well as run a monte carlo to find a satisfactory network. Then it will sit in a loop
+# waiting for input commands.
+def visual(argv):
+    print argv
+    X = readFile(argv.input[0])
+    argv.input[0].close()
+    Y = readFile(argv.output[0])
+    argv.output[0].close()
+
     if not X.shape[0] == Y.shape[0]:
-        print "Need equal number of Inputs and Outputs"
-        return
+        print "ERROR: Need equal number of Inputs and Outputs"
+        return False
     else:
         print str(X.shape[0]) + " data points given."
 
-    #Creates a trainer and network, created as a X input to a set of hidden to Y output.
+    # Creates a trainer and network, created as a X input to a set of hidden to Y output.
     print("This neural network will take in " + str(X.shape[1]) +
      " inputs and will output " + str(Y.shape[1]) + " floats.")
 
-    numHiddenLayers = ""
-    while not numHiddenLayers.isdigit():
-        numHiddenLayers = raw_input("How many hidden layers do you want: ")
-    numHiddenLayers = int(numHiddenLayers)
+    layerNodes = None
+    params = None
 
-    layerNodes = (X.shape[1],)
+    if not argv.params == None:
+        params = read_params(argv.params[0])
+        argv.params[0].close()
+        if params[0][0] == X.shape[1] and params[0][len(params[0])] == Y.shape[1]:
+            layerNodes = params[0]
+            NN = ForwardNN.ForwardNN(layerNodes)
+            NN.set_params(params[1])
+        else:
+            print "ERROR: Invalid layers given by parameters"
+            return
+    elif not argv.layers == None:
+        layerNodes = (X.shape[1],) + tuple(argv.layers,) + (Y.shape[1],)
+        NN = ForwardNN.ForwardNN(layerNodes)
+        print("Neural Network Layers: " + str(layerNodes))
+    else:
+        layerNodes = (X.shape[1],) + (Y.shape[1],)
+        NN = ForwardNN.ForwardNN(layerNodes)
+        print("Neural Network Layers: " + str(layerNodes))
 
-    print("Enter the number of nodes for each hidden layer")
-    for i in range(1, numHiddenLayers+1):
-        hiddenLayerNodes = ""
-        while not hiddenLayerNodes.isdigit():
-            hiddenLayerNodes = raw_input("Hidden Layer " + str(i) + ": ")
-        layerNodes = layerNodes + (int(hiddenLayerNodes),)
-        print layerNodes
-
-    layerNodes = layerNodes + (Y.shape[1],)
-    print layerNodes
-
-    NN = NeuralNetwork.NeuralNetwork(layerNodes)
-    if len(sys.argv) >= 4:
-        NN.set_params(weights)
-
-    train = NeuralNetwork.Trainer(NN)
 
     # As the print states, runs a forward operation on the network with it's randomly generated weights.
-    raw_input("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
+    print("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
     print(NN.forward(X))
     print("Cost Function: " + NN.cost_function_type(X, Y))
     print("Cost: " + str(NN.cost_function(X, Y)))
 
-    #Trains the network using the trainer and test data.
-    max_count = ""
-    while not max_count.isdigit():
-        max_count = raw_input("Training the network, then training on a monte carlo.\n# of Cycles: ")
-    max_count = int(max_count)
+    # Trains the network using the trainer and test data.
+    NN = train(argv.cycle[0], NN, layerNodes, X, Y)
 
-    bestNN = NeuralNetwork.NeuralNetwork(layerNodes)
-    bestNN.set_params(NN.get_params())
-
-    #This is our monte carlo. Continually trains networks until one statisfies our conditions.
-    if max_count > 0:
-        count = 0
-        while np.isnan(bestNN.cost_function(X, Y)) or count < max_count:
-            train = NeuralNetwork.Trainer(NN)
-            train.train(X, Y)
-            if bestNN.cost_function(X, Y) > NN.cost_function(X, Y):
-                bestNN = NeuralNetwork.NeuralNetwork(layerNodes)
-                bestNN.set_params(NN.get_params())
-                print("New cost: " + str(bestNN.cost_function(X, Y)))
-            count += 1
-            NN = NeuralNetwork.NeuralNetwork(layerNodes)
-            print("Current cycle: " + str(count))
-
-        NN.set_params(bestNN.get_params())
-    #Print the results of the training and monte carlo.
-    raw_input("Now printing the final match results.")
+    # Print the results of the training and monte carlo.
+    print("Now printing the final match results.")
     print(np.around(NN.forward(X), decimals=2))
     print("Cost function: " + str(NN.cost_function(X, Y)))
 
-    #Input control loop.
+    # Input control loop.
     while 1:
-        ans = raw_input("input a command: forward <file>, save <file>, or exit: ")
+        ans = raw_input("\nInput a one of the following commands: " +
+        "\n\tforward <file>\n\tsave <file>\n\texit" +
+        "\n\nCommand: ")
 
         # When a user inputs forward and a file, read in the file and run forward using it.
         if ans.split(' ')[0] == 'forward' and len(ans.split(' ')) > 1:
-                print ans.split(' ')
-                input = readFile(ans.split(' ')[1])
-                print(np.around(NN.forward(input), decimals=2))
-
-                #Additional checker tool, allows for a forwarded file to be added to test data.
-                valid = raw_input("Is this the expected output? (y/n): ")
-                if valid == "n":
-                    actualOutput = raw_input("What is the correct output: ")
-                    try:
-                        actualOutput = int(actualOutput)
-                        with open(sys.argv[1], "a") as trainInput:
-                            with open(ans.split(' ')[1], "r") as newInput:
-                                trainInput.write(newInput.read())
-                                trainInput.close()
-                                newInput.close()
-                        with open(sys.argv[2], "a") as trainOutput:
-                            newData = ""
-                            zeroes = 9 - actualOutput
-                            while actualOutput > 0:
-                                newData += "0 "
-                                actualOutput = actualOutput - 1
-                            newData += "1"
-                            if zeroes == 0:
-                                newData += "\n"
-                            else:
-                                newData += " "
-                                while zeroes > 0:
-                                    if zeroes == 1:
-                                        newData += "0\n"
-                                    else:
-                                        newData += "0 "
-                                    zeroes = zeroes - 1
-                            trainOutput.write(newData)
-                            trainOutput.close()
-                            print("Is added to training data. Will not be implemented until restart.")
-                    except ValueError:
-                        print("Invalid input.")
-        elif ans.split(' ')[0] == 'save' and len(ans.split(' ')) > 1:
-            print ans.split(' ')
-
-            filename = ans.split(' ')[1]
-            if filename == "default":
-                filename = "Weights-" + str(layerNodes)
-
-            with open(filename, "w") as weights:
-                print "Saving weights in " + filename
-                weights.write(str(NN.get_params()).replace("[", "").replace("]","")
-                              .replace("\n", "").replace("   "," ").replace("  ", " "))
-                weights.close()
+            forward(ans.split(' ')[1], argv.input[0].name, argv.output[0].name, NN)
+        elif ans.split(' ')[0] == 'save':
+            if len(ans.split(' ')) <= 1:
+                save("default")
+            else:
+                save(ans.split(' ')[1])
         # Exit.
         elif ans.split(' ')[0] == 'exit':
-                break
+            break
         # Completely invalid input.
         else:
             print "#NopeNopeNope."
 
-#If this script is being run, as opposed to imported, run the run function.
-if __name__ == '__main__':
-    if len(sys.argv) >= 2:
-        run()
-    else:
-        print "Invalid number of inputs. (Requires expected input & expected output files)"
 
+# If this script is being run, as opposed to imported, run the run function.
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Takes in information to give to Neural Network")
+    parser.add_argument("input", metavar="I", type=argparse.FileType('r'), nargs=1, help="Input data points")
+    parser.add_argument("output", metavar="O", type=argparse.FileType('r'), nargs=1, help="Expected output data")
+    parser.add_argument("cycle", metavar="C", type=int, nargs=1,
+                        help="Number of cycles used for training. Best cost function will be taken.")
+    parser.add_argument("--params", metavar="W", type=argparse.FileType('r'), nargs='?',
+                        help="File containing pre-existing weights and layers")
+    parser.add_argument("--layers", type=int, nargs='*', const=None, default=None,
+                        help="List of ints, containing the # of nodes for each hidden layer (Overwritten by params)")
+    parser.add_argument("--visual", dest="visual", action="store_const", const=visual, default=visual,
+                        help="Runs through Neural Network with visual")
+
+args = parser.parse_args()
+args.visual(args)
+
+# META
 __author__ = 'Bill Clark & John Bucknam'

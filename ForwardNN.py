@@ -4,7 +4,7 @@ from scipy import optimize
 __author__ = 'John Bucknam & Bill Clark'
 
 
-class NeuralNetwork(object):
+class ForwardNN(object):
     """A feedforward neural network that capable of regression or classification.
 
     Requires Numpy to run and takes in ndarray inputs.
@@ -185,18 +185,24 @@ class NeuralNetwork(object):
 
         delta = []
         derived = []
-        delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
-        derived.append(np.dot(self.threshold[len(self.threshold) - 1].T, delta[len(delta) - 1]))
+        if len(self.weight) > 1:
+            delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
+            derived.append(np.dot(self.threshold[len(self.threshold) - 1].T, delta[len(delta) - 1]))
 
-        for i in range(2, len(self.inputSum)):
-            delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[len(self.weight) - i + 1].T)) *
-                         np.array(self.sigmoid_prime(self.inputSum[len(self.inputSum) - i])))
-            derived.append(np.dot(self.threshold[len(self.threshold) - i].T, delta[len(delta) - 1]))
+            for i in range(2, len(self.inputSum)):
+                delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[len(self.weight) - i + 1].T)) *
+                             np.array(self.sigmoid_prime(self.inputSum[len(self.inputSum) - i])))
+                derived.append(np.dot(self.threshold[len(self.threshold) - i].T, delta[len(delta) - 1]))
 
-        delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[1].T)) *
-                     np.array(self.sigmoid_prime(self.inputSum[0])))
-        derived.append(np.dot(x.T, delta[len(delta) - 1]))
+            if len(self.weight) > 1:
+                delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[1].T)) *
+                             np.array(self.sigmoid_prime(self.inputSum[0])))
+                derived.append(np.dot(x.T, delta[len(delta) - 1]))
+        else:
+            delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
+            derived.append(np.dot(x.T, delta[len(delta) - 1]))
         return derived
+
 
     def compute_gradients(self, x, y):
         """Returns the gradients from each layer of computation
@@ -247,25 +253,30 @@ class NeuralNetwork(object):
         """
         # Starting position of first set of weights
         hiddenStart = 0
-        # Ending position of first set of weights
-        hiddenEnd = self.hiddenLayerSizes[0] * self.inputLayerSize
-        # Sets the first set of weights
-        self.weight[0] = np.reshape(params[hiddenStart:hiddenEnd], (self.inputLayerSize, self.hiddenLayerSizes[0]))
+        if len(self.weight) > 1:
+            # Ending position of first set of weights
+            hiddenEnd = self.hiddenLayerSizes[0] * self.inputLayerSize
+            # Sets the first set of weights
+            self.weight[0] = np.reshape(params[hiddenStart:hiddenEnd], (self.inputLayerSize, self.hiddenLayerSizes[0]))
 
-        # for each hidden layer
-        for layer in range(0, len(self.hiddenLayerSizes) - 1):
-            # new start position is the previous end position
+            # for each hidden layer
+            for layer in range(0, len(self.hiddenLayerSizes) - 1):
+                # new start position is the previous end position
+                hiddenStart = hiddenEnd
+                # set new end position
+                hiddenEnd = hiddenStart + self.hiddenLayerSizes[layer] * self.hiddenLayerSizes[layer + 1]
+                # Sets the set of weights to weight list
+                self.weight[layer + 1] = np.reshape(params[hiddenStart:hiddenEnd],
+                                           (self.hiddenLayerSizes[layer], self.hiddenLayerSizes[layer + 1]))
+            # Setting the final set of weights to output
             hiddenStart = hiddenEnd
-            # set new end position
-            hiddenEnd = hiddenStart + self.hiddenLayerSizes[layer] * self.hiddenLayerSizes[layer + 1]
-            # Sets the set of weights to weight list
-            self.weight[layer + 1] = np.reshape(params[hiddenStart:hiddenEnd],
-                                       (self.hiddenLayerSizes[layer], self.hiddenLayerSizes[layer + 1]))
-        # Setting the final set of weights to output
-        hiddenStart = hiddenEnd
-        hiddenEnd = hiddenStart + self.hiddenLayerSizes[len(self.hiddenLayerSizes) - 1] * self.outputLayerSize
-        self.weight[len(self.weight) - 1] = np.reshape(params[hiddenStart:hiddenEnd],
-                                        (self.hiddenLayerSizes[len(self.hiddenLayerSizes) - 1], self.outputLayerSize))
+            hiddenEnd = hiddenStart + self.hiddenLayerSizes[len(self.hiddenLayerSizes) - 1] * self.outputLayerSize
+            self.weight[len(self.weight) - 1] = np.reshape(params[hiddenStart:hiddenEnd],
+                                            (self.hiddenLayerSizes[len(self.hiddenLayerSizes) - 1], self.outputLayerSize))
+        else:
+            hiddenEnd = self.inputLayerSize * self.outputLayerSize
+            self.weight[0] = np.reshape(params[hiddenStart:hiddenEnd], (self.inputLayerSize, self.outputLayerSize))
+
 
 class Trainer(object):
     def __init__(self, N):
