@@ -186,19 +186,22 @@ class ForwardNN(object):
         delta = []
         derived = []
         if len(self.weight) > 1:
+            # Derivative of cost function * derivative of threshold function(z)
             delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
             derived.append(np.dot(self.threshold[len(self.threshold) - 1].T, delta[len(delta) - 1]))
 
+            # Loop for each set of weights
             for i in range(2, len(self.inputSum)):
                 delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[len(self.weight) - i + 1].T)) *
                              np.array(self.sigmoid_prime(self.inputSum[len(self.inputSum) - i])))
                 derived.append(np.dot(self.threshold[len(self.threshold) - i].T, delta[len(delta) - 1]))
 
-            if len(self.weight) > 1:
-                delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[1].T)) *
-                             np.array(self.sigmoid_prime(self.inputSum[0])))
-                derived.append(np.dot(x.T, delta[len(delta) - 1]))
+            # Final set of weights with input
+            delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[1].T)) *
+                         np.array(self.sigmoid_prime(self.inputSum[0])))
+            derived.append(np.dot(x.T, delta[len(delta) - 1]))
         else:
+            # Derivative of cost function * derivative of threshold function(z)
             delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
             derived.append(np.dot(x.T, delta[len(delta) - 1]))
         return derived
