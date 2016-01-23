@@ -20,17 +20,20 @@ class ForwardNN(object):
     hiddenLayerSizes = None
     weight = None
 
-    def __init__(self, layer_sizes):
+    def __init__(self, layer_sizes, sigfunc=True):
         """Constructor
 
         Params:
             tuple: Floats; First element is the input layer, last element is the output layer,
             and every other layer acts as an input layer
+            sigfunc: Boolean; When true, Neural Network will use sgmoid function, otherwise tanh (Default: True)
         """
         # Define each layer
         self.inputLayerSize = layer_sizes[0]
         self.outputLayerSize = layer_sizes[len(layer_sizes) - 1]
         self.hiddenLayerSizes = layer_sizes[1:len(layer_sizes) - 1]
+
+        self.is_sigmoid = sigfunc
 
         # Set each weight depending on the number of each layer being paired
         self.weight = []
@@ -65,9 +68,9 @@ class ForwardNN(object):
         self.inputSum.append(np.dot(input_matrix, self.weight[0]))
         for i in range(len(self.weight) - 1):
             # Append each A value from the sigmoid(Z)
-            self.threshold.append(self.sigmoid(self.inputSum[i]))
+            self.threshold.append(self.thresh_func(self.inputSum[i]))
             self.inputSum.append(np.dot(self.threshold[i], self.weight[i + 1]))
-        y_hat = self.sigmoid(self.inputSum[len(self.inputSum) - 1])
+        y_hat = self.thresh_func(self.inputSum[len(self.inputSum) - 1])
         return y_hat
 
     @staticmethod
@@ -105,8 +108,7 @@ class ForwardNN(object):
         """
         return np.tanh(z)
 
-    @staticmethod
-    def tanh_prime(z):
+    def tanh_prime(self, z):
         """Static Tanh Derivative Function
 
         Params:
@@ -115,7 +117,22 @@ class ForwardNN(object):
         Returns:
             ndarray: floats
         """
-        return np.multiply(((2 * np.cosh(z))/(np.cosh(2 * z) + 1)), ((2 * np.cosh(z))/(np.cosh(2 * z) + 1)))
+        return 1 - np.power(self.tanh(z), 2)
+
+    def thresh_func_type(self):
+        if self.is_sigmoid:
+            return "Sigmoid"
+        return "Tanh"
+
+    def thresh_func(self, z):
+        if self.is_sigmoid:
+            return self.sigmoid(z)
+        return self.tanh(z)
+
+    def thresh_func_prime(self, z):
+        if self.is_sigmoid:
+            return self.sigmoid_prime(z)
+        return self.tanh_prime(z)
 
     def cost_function(self, x, y):
         """The cost function that compares the expected output with the actual output for training
@@ -187,22 +204,22 @@ class ForwardNN(object):
         derived = []
         if len(self.weight) > 1:
             # Derivative of cost function * derivative of threshold function(z)
-            delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
+            delta.append(np.multiply(-(y-y_hat), self.thresh_func_prime(self.inputSum[len(self.inputSum) - 1])))
             derived.append(np.dot(self.threshold[len(self.threshold) - 1].T, delta[len(delta) - 1]))
 
             # Loop for each set of weights
             for i in range(2, len(self.inputSum)):
                 delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[len(self.weight) - i + 1].T)) *
-                             np.array(self.sigmoid_prime(self.inputSum[len(self.inputSum) - i])))
+                             np.array(self.thresh_func_prime(self.inputSum[len(self.inputSum) - i])))
                 derived.append(np.dot(self.threshold[len(self.threshold) - i].T, delta[len(delta) - 1]))
 
             # Final set of weights with input
             delta.append(np.array(np.dot(delta[len(delta) - 1], self.weight[1].T)) *
-                         np.array(self.sigmoid_prime(self.inputSum[0])))
+                         np.array(self.thresh_func_prime(self.inputSum[0])))
             derived.append(np.dot(x.T, delta[len(delta) - 1]))
         else:
             # Derivative of cost function * derivative of threshold function(z)
-            delta.append(np.multiply(-(y-y_hat), self.sigmoid_prime(self.inputSum[len(self.inputSum) - 1])))
+            delta.append(np.multiply(-(y-y_hat), self.thresh_func_prime(self.inputSum[len(self.inputSum) - 1])))
             derived.append(np.dot(x.T, delta[len(delta) - 1]))
         return derived
 

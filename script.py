@@ -16,9 +16,11 @@ def readFile(name):
 
 def read_params(name):
     prev = []
-    firstline = name.readline()
+    firstline = name.readline().replace("\n","").split(" ")
+    print firstline
     layer = ()
     for arg in firstline:
+        print("ARG: " + arg)
         layer = layer + (int(arg),)
     prev.append(layer)
     prev.append(np.fromstring(name.readline(), dtype=float, sep=" "))
@@ -33,6 +35,8 @@ def forward(testfile, infile, outfile, NN):
         print("ERROR: Invalid file input")
         return False
 
+    print(input)
+    print(NN.forward(input))
     print(np.around(NN.forward(input), decimals=2))
 
     # Additional checker tool, allows for a forwarded file to be added to test data.
@@ -40,7 +44,6 @@ def forward(testfile, infile, outfile, NN):
     if valid == "n":
         actualOutput = raw_input("What is the correct output: ")
         try:
-            actualOutput = int(actualOutput)
             with open(infile, "a") as trainInput:
                 with open(testfile, "r") as newInput:
                     trainInput.write(newInput.read())
@@ -48,22 +51,7 @@ def forward(testfile, infile, outfile, NN):
                     newInput.close()
             with open(outfile, "a") as trainOutput:
                 newData = ""
-                zeroes = 9 - actualOutput
-                while actualOutput > 0:
-                    newData += "0 "
-                    actualOutput = actualOutput - 1
-                newData += "1"
-                if zeroes == 0:
-                    newData += "\n"
-                else:
-                    newData += " "
-                    while zeroes > 0:
-                        if zeroes == 1:
-                            newData += "0\n"
-                        else:
-                            newData += "0 "
-                        zeroes = zeroes - 1
-                trainOutput.write(newData)
+                trainOutput.write(actualOutput + "\n")
                 trainOutput.close()
                 print("Is added to training data. Will not be implemented until restart.")
         except ValueError:
@@ -71,20 +59,24 @@ def forward(testfile, infile, outfile, NN):
             return False
     return True
 
-def save(filename):
+def save(filename, NN, layerNodes):
+    str_layer = str(layerNodes).replace("(", "").replace(")", "").replace(",","").replace("L","")
     if filename == "default":
-        filename = "Weights-" + str(layerNodes)
-        return True
+        filename = "Weights-" + str_layer
 
     with open(filename, "w") as weights:
         print "Saving weights in " + filename
-        weights.write(str(NN.get_params()).replace("[", "").replace("]","")
-                      .replace("\n", "").replace("   "," ").replace("  ", " "))
+        weights.write(str_layer)
+        weights.write("\n")
+        print str(NN.get_params())
+        weights.write(str(NN.get_params()).replace("[ ", "").replace("[", "")
+                        .replace("]","").replace("\n", "").replace("   "," ")
+                        .replace("  ", " "))
         weights.close()
     return True
 
-def train(max_count, NN, layerNodes, X, Y):
-    bestNN = ForwardNN.ForwardNN(layerNodes)
+def train(max_count, NN, layerNodes, thresh, X, Y):
+    bestNN = ForwardNN.ForwardNN(layerNodes, thresh)
     bestNN.set_params(NN.get_params())
 
     # This is our monte carlo. Continually trains networks until one statisfies our conditions.
@@ -128,23 +120,23 @@ def visual(argv):
     layerNodes = None
     params = None
 
-    if not argv.params == None:
-        params = read_params(argv.params[0])
-        argv.params[0].close()
-        if params[0][0] == X.shape[1] and params[0][len(params[0])] == Y.shape[1]:
+    if not argv.params is None:
+        params = read_params(argv.params)
+        argv.params.close()
+        if params[0][0] == X.shape[1] and params[0][len(params[0]) - 1] == Y.shape[1]:
             layerNodes = params[0]
-            NN = ForwardNN.ForwardNN(layerNodes)
+            NN = ForwardNN.ForwardNN(layerNodes, argv.thresh)
             NN.set_params(params[1])
         else:
             print "ERROR: Invalid layers given by parameters"
             return
     elif not argv.layers == None:
         layerNodes = (X.shape[1],) + tuple(argv.layers,) + (Y.shape[1],)
-        NN = ForwardNN.ForwardNN(layerNodes)
+        NN = ForwardNN.ForwardNN(layerNodes, argv.thresh)
         print("Neural Network Layers: " + str(layerNodes))
     else:
         layerNodes = (X.shape[1],) + (Y.shape[1],)
-        NN = ForwardNN.ForwardNN(layerNodes)
+        NN = ForwardNN.ForwardNN(layerNodes, argv.thresh)
         print("Neural Network Layers: " + str(layerNodes))
 
 
@@ -152,10 +144,11 @@ def visual(argv):
     print("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
     print(NN.forward(X))
     print("Cost Function: " + NN.cost_function_type(X, Y))
+    print("Threshold Function: " + NN.thresh_func_type())
     print("Cost: " + str(NN.cost_function(X, Y)))
 
     # Trains the network using the trainer and test data.
-    NN = train(argv.cycle[0], NN, layerNodes, X, Y)
+    NN = train(argv.cycle[0], NN, layerNodes, argv.thresh, X, Y)
 
     # Print the results of the training and monte carlo.
     print("Now printing the final match results.")
@@ -173,9 +166,9 @@ def visual(argv):
             forward(ans.split(' ')[1], argv.input[0].name, argv.output[0].name, NN)
         elif ans.split(' ')[0] == 'save':
             if len(ans.split(' ')) <= 1:
-                save("default")
+                save("default", NN, layerNodes)
             else:
-                save(ans.split(' ')[1])
+                save(ans.split(' ')[1], NN, layerNodes)
         # Exit.
         elif ans.split(' ')[0] == 'exit':
             break
@@ -198,6 +191,9 @@ if __name__ == '__main__':
                         help="List of ints, containing the # of nodes for each hidden layer (Overwritten by params)")
     parser.add_argument("--visual", dest="visual", action="store_const", const=visual, default=visual,
                         help="Runs through Neural Network with visual")
+    parser.add_argument("--sigmoid", dest="thresh", action="store_true")
+    parser.add_argument("--tanh", dest="thresh", action="store_false")
+    parser.set_defaults(thresh=True)
 
 args = parser.parse_args()
 args.visual(args)
