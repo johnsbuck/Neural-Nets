@@ -5,7 +5,13 @@ import numpy as np
 import argparse
 import os.path
 
-np.set_printoptions(threshold='nan')
+np.set_printoptions(threshold=np.nan)
+
+# For doing inputs in both Python2 and Python3
+try:
+    input = raw_input
+except NameError:
+    pass
 
 # Reads in file as an array of arrays.
 def readFile(name):
@@ -17,7 +23,7 @@ def readFile(name):
 def read_params(name):
     prev = []
     firstline = name.readline().replace("\n","").split(" ")
-    print firstline
+    print(firstline)
     layer = ()
     for arg in firstline:
         print("ARG: " + arg)
@@ -36,7 +42,7 @@ def forward(testfile, infile, outfile, NN):
         return False
 
     print(input)
-    print(NN.forward(input))
+    print(str(NN.forward(input)))
     print(np.around(NN.forward(input), decimals=2))
 
     # Additional checker tool, allows for a forwarded file to be added to test data.
@@ -65,10 +71,10 @@ def save(filename, NN, layerNodes):
         filename = "Weights-" + str_layer
 
     with open(filename, "w") as weights:
-        print "Saving weights in " + filename
+        print("Saving weights in " + filename)
         weights.write(str_layer)
         weights.write("\n")
-        print str(NN.get_params())
+        print(str(NN.get_params()))
         weights.write(str(NN.get_params()).replace("[ ", "").replace("[", "")
                         .replace("]","").replace("\n", "").replace("   "," ")
                         .replace("  ", " "))
@@ -101,17 +107,17 @@ def train(max_count, NN, layerNodes, thresh, X, Y):
 # As well as run a monte carlo to find a satisfactory network. Then it will sit in a loop
 # waiting for input commands.
 def visual(argv):
-    print argv
+    print(argv)
     X = readFile(argv.input[0])
     argv.input[0].close()
     Y = readFile(argv.output[0])
     argv.output[0].close()
 
     if not X.shape[0] == Y.shape[0]:
-        print "ERROR: Need equal number of Inputs and Outputs"
+        print("ERROR: Need equal number of Inputs and Outputs")
         return False
     else:
-        print str(X.shape[0]) + " data points given."
+        print(str(X.shape[0]) + " data points given.")
 
     # Creates a trainer and network, created as a X input to a set of hidden to Y output.
     print("This neural network will take in " + str(X.shape[1]) +
@@ -128,7 +134,7 @@ def visual(argv):
             NN = ForwardNN.ForwardNN(layerNodes, argv.thresh)
             NN.set_params(params[1])
         else:
-            print "ERROR: Invalid layers given by parameters"
+            print("ERROR: Invalid layers given by parameters")
             return
     elif not argv.layers == None:
         layerNodes = (X.shape[1],) + tuple(argv.layers,) + (Y.shape[1],)
@@ -142,7 +148,9 @@ def visual(argv):
 
     # As the print states, runs a forward operation on the network with it's randomly generated weights.
     print("Now printing an initial run on the " + str(X.shape[0]) + " base inputs and their cost function.")
-    print(NN.forward(X))
+    test = NN.forward(X)
+    print(type(test))
+    print(str(test))
     print("Cost Function: " + NN.cost_function_type(X, Y))
     print("Threshold Function: " + NN.thresh_func_type())
     print("Cost: " + str(NN.cost_function(X, Y)))
@@ -157,7 +165,7 @@ def visual(argv):
 
     # Input control loop.
     while 1:
-        ans = raw_input("\nInput a one of the following commands: " +
+        ans = input("\nInput a one of the following commands: " +
         "\n\tforward <file>\n\tsave <file>\n\texit" +
         "\n\nCommand: ")
 
@@ -174,7 +182,7 @@ def visual(argv):
             break
         # Completely invalid input.
         else:
-            print "#NopeNopeNope."
+            print("#NopeNopeNope.")
 
 
 # If this script is being run, as opposed to imported, run the run function.
