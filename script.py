@@ -35,20 +35,20 @@ def read_params(name):
 def forward(testfile, infile, outfile, NN):
     try:
         inputFile = open(testfile, 'r')
-        input = readFile(inputFile)
+        test_input = readFile(inputFile)
         inputFile.close()
     except IOError:
         print("ERROR: Invalid file input")
         return False
 
-    print(input)
-    print(str(NN.forward(input)))
-    print(np.around(NN.forward(input), decimals=2))
+    print(test_input)
+    print(str(NN.forward(test_input)))
+    print(np.around(NN.forward(test_input), decimals=2))
 
     # Additional checker tool, allows for a forwarded file to be added to test data.
-    valid = raw_input("Is this the expected output? (y/n): ")
+    valid = input("Is this the expected output? (y/n): ")
     if valid == "n":
-        actualOutput = raw_input("What is the correct output: ")
+        actualOutput = input("What is the correct output: ")
         try:
             with open(infile, "a") as trainInput:
                 with open(testfile, "r") as newInput:
